@@ -123,10 +123,27 @@ function path_lib.get_text_edit_ranges(context)
 
   local last_part_idx = path_lib.get_last_path_part(line_before_cursor)
 
-  -- Clamp to context.bounds so we never replace text before the current word
-  -- (e.g. when manually triggered without a path prefix)
-  local bounds_start = context.bounds.start_col
-  if last_part_idx < bounds_start then last_part_idx = bounds_start end
+  -- For manual triggers, clamp to context.bounds so we never replace text
+  -- before the current word, then expand backward to include path-like
+  -- characters (since '.' is both a trigger char and a valid path char,
+  -- get_last_path_part may stop too early)
+  if context.trigger and context.trigger.kind == 'manual' then
+    local bounds_start = context.bounds.start_col
+    if last_part_idx < bounds_start then last_part_idx = bounds_start end
+
+    local i = last_part_idx - 1
+    while i > 0 do
+      local c = line_before_cursor:sub(i, i)
+      if c == '/' or c == '\\' then
+        break
+      elseif c:match('[%w%._-]') then
+        last_part_idx = i
+        i = i - 1
+      else
+        break
+      end
+    end
+  end
 
   -- TODO: return the insert and replace ranges, instead of only the insert range
   return {
